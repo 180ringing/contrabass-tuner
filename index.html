@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contrabass Tuner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; color: #fff; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; }
+
+  .app { display: flex; flex-direction: column; height: 100vh; padding: 16px; gap: 8px; }
+
+  /* Start screen */
+  .start-screen { display: flex; align-items: center; justify-content: center; height: 100vh; position: absolute; inset: 0; z-index: 10; background: #0a0a0a; cursor: pointer; }
+  .start-screen h1 { font-size: 24px; color: #888; font-weight: 400; }
+  .start-screen.hidden { display: none; }
+
+  /* Note display: note centered on screen, cents positioned absolutely */
+  .note-display { position: relative; text-align: center; padding: 12px 0; flex-shrink: 0; }
+  .note-display.dim { opacity: 0.2; }
+  .note-name { font-size: min(15vw, 120px); font-weight: bold; line-height: 1; transition: color 0.15s; display: inline-flex; align-items: baseline; }
+  .note-accidental { display: inline-block; width: 0.35em; text-align: left; font-size: 0.585em; vertical-align: super; margin-left: 0.02em; margin-right: 0.12em; }
+  .note-octave { margin-left: 0.05em; }
+  .note-intune-left, .note-intune-right { font-size: min(8vw, 60px); color: #22c55e; opacity: 0; transition: opacity 0.2s; margin: 0 6px; line-height: 1; display: inline-block; transform: translateY(-0.35em); }
+  .note-intune-left.lit, .note-intune-right.lit { opacity: 1; text-shadow: 0 0 12px rgba(34,197,94,0.5); }
+  .note-cents-area { position: absolute; right: 8%; top: 50%; transform: translateY(-50%); display: flex; min-width: 6em; font-size: min(4vw, 28px); transition: color 0.15s; height: 80%; }
+  .note-cents-area.pos-top { align-items: flex-start; }
+  .note-cents-area.pos-center { align-items: center; }
+  .note-cents-area.pos-bottom { align-items: flex-end; }
+  .note-cents-inner { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .cents-triangle { font-size: 0.7em; opacity: 0.8; }
+
+  /* LED center mark */
+  .led-center-mark { text-align: center; font-size: 24px; color: #333; line-height: 1; margin-bottom: -4px; transition: color 0.2s, text-shadow 0.2s; }
+  .led-center-mark.lit { color: #22c55e; text-shadow: 0 0 8px rgba(34,197,94,0.6); }
+
+  /* LED bar (horizontal) */
+  .led-bar { display: flex; flex-direction: row; gap: 4px; align-items: center; justify-content: center; padding: 10px 16px; flex-shrink: 0; }
+  .led-segment { height: 30px; flex: 1; max-width: 36px; border-radius: 3px; transition: opacity 0.1s; }
+  .led-label { color: #555; font-size: 20px; flex-shrink: 0; padding: 0 8px; }
+
+  /* Lane */
+  .lane-container { display: flex; flex: 1; min-height: 0; }
+  .lane-canvas { flex: 1; width: 100%; min-height: 0; border-radius: 8px; border: 1px solid #222; display: block; }
+
+  /* Bottom bar */
+  .bottom-bar { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 0; flex-shrink: 0; }
+  .pause-btn { background: none; border: 1px solid #333; color: #555; font-family: inherit; font-size: 18px; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+  .pause-btn:hover { border-color: #555; color: #888; }
+  .pause-btn.active { border-color: #eab308; color: #eab308; background: rgba(234,179,8,0.1); }
+  .settings-btn { background: none; border: 1px solid #333; color: #555; font-size: 18px; padding: 4px 10px; border-radius: 6px; cursor: pointer; margin-left: 8px; }
+  .settings-btn:hover { border-color: #555; color: #888; }
+
+  /* Settings panel */
+  .settings-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 20; align-items: center; justify-content: center; }
+  .settings-overlay.open { display: flex; }
+  .settings-panel { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; width: min(460px, 92vw); max-height: 90vh; overflow-y: auto; }
+  .settings-panel h3 { font-size: 16px; margin-bottom: 16px; font-weight: 500; }
+  .setting-row { margin-bottom: 16px; }
+  .setting-row label { display: block; font-size: 13px; color: #ccc; margin-bottom: 4px; }
+  .setting-row .labels { display: flex; justify-content: space-between; font-size: 10px; color: #555; margin-top: 4px; }
+  .setting-row input[type="range"] { width: 100%; accent-color: #22c55e; }
+  .setting-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .setting-toggle input[type="checkbox"] { accent-color: #22c55e; width: 16px; height: 16px; }
+  .setting-toggle label { font-size: 13px; color: #ccc; cursor: pointer; }
+  .settings-section { border-top: 1px solid #333; padding-top: 12px; margin-top: 12px; }
+  .settings-section h4 { font-size: 12px; color: #666; margin-bottom: 10px; cursor: pointer; }
+  .settings-section h4:hover { color: #888; }
+  .dev-panel { display: none; }
+  .dev-panel.open { display: block; }
+  .dev-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; }
+  .dev-row input { width: 80px; background: #0a0a0a; border: 1px solid #333; color: #fff; padding: 2px 6px; border-radius: 4px; font-family: inherit; text-align: right; }
+  .settings-close { background: none; border: 1px solid #333; color: #888; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-family: inherit; margin-top: 12px; width: 100%; }
+
+  /* Custom tooltips */
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 30;
+    background: #222; color: #bbb; border: 1px solid #444; border-radius: 6px;
+    padding: 6px 10px; font-size: 11px; line-height: 1.4; width: max(200px, 100%); max-width: 340px;
+    pointer-events: none; white-space: normal; font-weight: normal;
+  }
+
+  /* Help content i18n */
+  .help-content { display: none; }
+  .help-content.active { display: block; }
+
+  /* Color states */
+  .color-green { color: #22c55e; }
+  .color-yellow { color: #eab308; }
+  .color-red { color: #ef4444; }
+</style>
+</head>
+<body>
+
+<div class="start-screen" id="startScreen">
+  <h1>Нажми, чтобы начать</h1>
+</div>
+
+<div class="app">
+  <div class="note-display dim" id="noteDisplay">
+    <span class="note-intune-left" id="noteIntuneLeft">▸</span>
+    <span class="note-name"><span id="noteLetter">—</span><span id="noteAccidental" class="note-accidental"></span><span id="noteOctave"></span></span>
+    <span class="note-intune-right" id="noteIntuneRight">◂</span>
+    <div class="note-cents-area pos-center" id="noteCentsArea">
+      <div class="note-cents-inner" id="noteCentsInner"></div>
+    </div>
+  </div>
+
+  <div class="led-center-mark" id="ledCenterMark">▼</div>
+  <div class="led-bar" id="ledBar">
+    <span class="led-label">♭</span>
+    <span class="led-label">♯</span>
+  </div>
+
+  <div class="lane-container">
+    <canvas class="lane-canvas" id="laneCanvas"></canvas>
+  </div>
+
+  <div class="bottom-bar">
+    <button class="pause-btn" id="pauseBtn">⏸</button>
+    <button class="settings-btn" id="settingsBtn" title="Настройки">⚙</button>
+    <button class="settings-btn" id="helpBtn" title="Справка">?</button>
+  </div>
+</div>
+
+<div class="settings-overlay" id="helpOverlay">
+  <div class="settings-panel" style="width:min(620px,94vw);max-height:92vh">
+    <h3>Contrabass Tuner</h3>
+
+    <div class="help-content" data-help-lang="ru">
+      <p style="font-size:13px;color:#bbb;line-height:1.6;margin-bottom:12px">
+        Привет, я Егор, я играю на бас-гитаре и учусь играть на контрабасе. Сделал этот тюнер, чтобы заниматься интонированием — на безладовом инструменте нет ориентиров, и нужно учиться попадать в ноты на слух. Обычные тюнеры показывают только текущее отклонение, а мне хотелось видеть <em>историю</em> — как стабильно я держу ноту и что происходит при переходах. Потом увлёкся и решил сделать тюнер своей мечты.
+      </p>
+
+      <h4 style="font-size:13px;color:#ccc;margin-bottom:8px">Возможности</h4>
+      <ul style="font-size:12px;color:#999;line-height:1.7;margin-bottom:16px;padding-left:20px">
+        <li><strong style="color:#ccc">Lane</strong> — график высоты тона в реальном времени. Зелёный коридор = «попал», линия показывает стабильность интонации за последние секунды</li>
+        <li><strong style="color:#ccc">LED-шкала</strong> — мгновенный индикатор отклонения, как на аппаратном тюнере</li>
+        <li><strong style="color:#ccc">Детекция атаки</strong> — бланкинг шумного транзиента при щипке (pizzicato), чтобы тюнер не дёргался</li>
+        <li><strong style="color:#ccc">Octave lock</strong> — фиксирует октаву между щипками, борется с прыжками G1↔G2 из-за сильных гармоник контрабаса</li>
+        <li><strong style="color:#ccc">Lowpass-фильтр</strong> — ослабляет верхние гармоники до анализа, помогая детектору найти фундаментал</li>
+        <li><strong style="color:#ccc">Spectral flatness</strong> — отличает музыкальную ноту от шума по форме спектра</li>
+        <li><strong style="color:#ccc">Адаптивный RMS gate</strong> — отсекает тихий фоновый шум, но дослушивает затухающий хвост ноты</li>
+      </ul>
+
+      <h4 style="font-size:13px;color:#ccc;margin-bottom:8px">Как устроен — путь сигнала</h4>
+      <pre style="font-size:10px;color:#888;line-height:1.5;overflow-x:auto;background:#111;padding:12px;border-radius:6px;margin-bottom:12px;white-space:pre;font-family:monospace">
+Микрофон
+  │
+  ▼
+Lowpass Filter ─────────── lowpassFreq: 350 Гц
+  │                        Ослабляет верхние гармоники
+  ▼
+AnalyserNode ──────────── bufferSize: 4096 (~93 мс)
+  │
+  ├─ волна (inputBuffer)
+  │    │
+  │    ▼
+  │  [1] Attack Detection ─ attackRmsRatio: 3.0
+  │    │                     attackBlankMs: 120
+  │    │                     + сброс octave lock
+  │    ▼
+  │  [2] RMS Gate ────────── rmsGateHigh / rmsGateLow
+  │    │                     rmsGateRelease: 0.9985
+  │    ▼
+  ├─ спектр (freqBuffer)
+  │    │
+  │    ▼
+  │  [3] Spectral Gate ──── spectralThreshold: 0.25
+  │    │                     0=тон, 1=шум
+  │    ▼
+  │  [4] Pitch Detection ── clarityThreshold: 0.92
+  │    │  (pitchy MPM)       minFrequency / maxFrequency
+  │    ▼
+  │  [5] Median Filter ──── medianWindow: 7
+  │    │  (на Гц)
+  │    ▼
+  │  [6] Octave Lock ────── octaveLockEnabled
+  │    │  snap ×2/×0.5
+  │    ▼
+  │  [7] Freq → Note+Cents
+  │    │
+  │    ▼
+  │  [8] Note Change Detection
+  │    │
+  │    ▼
+  │  [9] EMA Filter ─────── smoothingAlpha: 0.15
+  │    │  (на центах)
+  │    ▼
+  ├────┼────────────┐
+  ▼    ▼            ▼
+Нота  LED-шкала   Lane (canvas)
+±¢    21 сегм.    trail + коридор
+▸ ◂   + метка     greenZoneCents: 13
+                  trailDurationSec: 3</pre>
+
+      <p style="font-size:11px;color:#666;margin-top:8px;margin-bottom:16px">
+        Pitch detection: <a href="https://github.com/ianprime0509/pitchy" style="color:#555">pitchy</a> (McLeod Pitch Method) · Web Audio API · Canvas 2D
+      </p>
+
+      <h4 style="font-size:13px;color:#ccc;margin-bottom:8px;margin-top:16px">Почему HTML?</h4>
+      <p style="font-size:12px;color:#999;line-height:1.7;margin-bottom:16px">
+        Мне нужно было что-то быстрое и кроссплатформенное. Главное — чтобы тюнер открывался на ноутбуке во весь экран и был виден издалека, пока я стою у контрабаса. Веб-страница — самое простое решение: один файл, открыл в браузере — и работает.
+      </p>
+
+      <h4 style="font-size:13px;color:#ccc;margin-bottom:8px;margin-top:16px">Заметки</h4>
+      <ul style="font-size:12px;color:#999;line-height:1.7;margin-bottom:16px;padding-left:20px">
+        <li>Тестировалось на MacBook со встроенным микрофоном</li>
+        <li>Делался в первую очередь для контрабаса — пороги и фильтры подобраны под его тембр и низкие частоты. На бас-гитаре проверял, работает хорошо. Возможно, подойдёт и для гитары</li>
+        <li>Параметры по умолчанию подобраны под мои условия. Основные настройки вынесены ползунками, тонкие — в инженерном меню. Подкрутите под себя</li>
+        <li>Библиотека pitch detection (<a href="https://github.com/ianprime0509/pitchy" style="color:#555">pitchy</a>) загружается из интернета при первом открытии. Для работы нужен HTTPS или localhost</li>
+      </ul>
+
+      <p style="font-size:12px;color:#888;line-height:1.6;border-top:1px solid #333;padding-top:12px">
+        Написано совместно с <a href="https://claude.ai/code" style="color:#22c55e">Claude Code</a>. С использованием моей любви к музыке и образования инженера связи 🎸
+      </p>
+
+      <p style="font-size:12px;color:#888;line-height:1.6;margin-top:8px">
+        Если хотите что-то сказать про тюнер — буду рад:<br>
+        Telegram: <a href="https://t.me/egorandreev" style="color:#22c55e">@egorandreev</a><br>
+        Канал про музыку и айтишку: <a href="https://t.me/grooveops" style="color:#22c55e">@grooveops</a>
+      </p>
+    </div>
+
+    <div class="help-content" data-help-lang="en">
+      <p style="font-size:13px;color:#bbb;line-height:1.6;margin-bottom:12px">
+        Hi, I'm Egor. I play bass guitar and I'm learning contrabass. I built this tuner to practice intonation — on a fretless instrument there are no landmarks, so you have to learn to hit the notes by ear. Regular tuners only show the current deviation, but I wanted to see the <em>history</em> — how steadily I hold a note and what happens during transitions. Then I got carried away and decided to build the tuner of my dreams.
+      </p>
+
+      <h4 style="font-size:13px;color:#ccc;margin-bottom:8px">Features</h4>
+      <ul style="font-size:12px;color:#999;line-height:1.7;margin-bottom:16px;padding-left:20px">
+        <li><strong style="color:#ccc">Lane</strong> — real-time pitch graph. Green corridor = "in tune", the line shows intonation stability over the last few seconds</li>
+        <li><strong style="color:#ccc">LED bar</strong> — instant deviation indicator, like a hardware tuner</li>
+        <li><strong style="color:#ccc">Attack detection</strong> — blanks the noisy transient on pluck (pizzicato) so the tuner doesn't jump</li>
+        <li><strong style="color:#ccc">Octave lock</strong> — locks the octave between plucks, fights G1↔G2 jumps caused by strong contrabass harmonics</li>
+        <li><strong style="color:#ccc">Lowpass filter</strong> — weakens upper harmonics before analysis, helping the detector find the fundamental</li>
+        <li><strong style="color:#ccc">Spectral flatness</strong> — distinguishes a musical note from noise by spectrum shape</li>
+        <li><strong style="color:#ccc">Adaptive RMS gate</strong> — cuts quiet background noise but follows the decaying tail of a note</li>
+      </ul>
+
+      <h4 style="font-size:13px;color:#ccc;margin-bottom:8px">How it works — signal path</h4>
+      <pre style="font-size:10px;color:#888;line-height:1.5;overflow-x:auto;background:#111;padding:12px;border-radius:6px;margin-bottom:12px;white-space:pre;font-family:monospace">
+Microphone
+  │
+  ▼
+Lowpass Filter ─────────── lowpassFreq: 350 Hz
+  │                        Weakens upper harmonics
+  ▼
+AnalyserNode ──────────── bufferSize: 4096 (~93 ms)
+  │
+  ├─ waveform (inputBuffer)
+  │    │
+  │    ▼
+  │  [1] Attack Detection ─ attackRmsRatio: 3.0
+  │    │                     attackBlankMs: 120
+  │    │                     + octave lock reset
+  │    ▼
+  │  [2] RMS Gate ────────── rmsGateHigh / rmsGateLow
+  │    │                     rmsGateRelease: 0.9985
+  │    ▼
+  ├─ spectrum (freqBuffer)
+  │    │
+  │    ▼
+  │  [3] Spectral Gate ──── spectralThreshold: 0.25
+  │    │                     0=tone, 1=noise
+  │    ▼
+  │  [4] Pitch Detection ── clarityThreshold: 0.92
+  │    │  (pitchy MPM)       minFrequency / maxFrequency
+  │    ▼
+  │  [5] Median Filter ──── medianWindow: 7
+  │    │  (on Hz)
+  │    ▼
+  │  [6] Octave Lock ────── octaveLockEnabled
+  │    │  snap ×2/×0.5
+  │    ▼
+  │  [7] Freq → Note+Cents
+  │    │
+  │    ▼
+  │  [8] Note Change Detection
+  │    │
+  │    ▼
+  │  [9] EMA Filter ─────── smoothingAlpha: 0.15
+  │    │  (on cents)
+  │    ▼
+  ├────┼────────────┐
+  ▼    ▼            ▼
+Note  LED bar     Lane (canvas)
+±¢    21 seg.     trail + corridor
+▸ ◂   + mark      greenZoneCents: 13
+                  trailDurationSec: 3</pre>
+
+      <p style="font-size:11px;color:#666;margin-top:8px;margin-bottom:16px">
+        Pitch detection: <a href="https://github.com/ianprime0509/pitchy" style="color:#555">pitchy</a> (McLeod Pitch Method) · Web Audio API · Canvas 2D
+      </p>
+
+      <h4 style="font-size:13px;color:#ccc;margin-bottom:8px;margin-top:16px">Why HTML?</h4>
+      <p style="font-size:12px;color:#999;line-height:1.7;margin-bottom:16px">
+        I needed something fast and cross-platform. The main requirement was a fullscreen tuner on a laptop, visible from a distance while standing at the contrabass. A web page was the simplest solution: one file, open in browser, done.
+      </p>
+
+      <h4 style="font-size:13px;color:#ccc;margin-bottom:8px;margin-top:16px">Notes</h4>
+      <ul style="font-size:12px;color:#999;line-height:1.7;margin-bottom:16px;padding-left:20px">
+        <li>Tested on a MacBook with the built-in microphone</li>
+        <li>Built primarily for contrabass — thresholds and filters are tuned for its timbre and low frequencies. Tested on bass guitar too, works well. Might work for guitar as well</li>
+        <li>Default parameters are tuned for my conditions. Main settings are exposed as sliders, fine-tuning is in the engineering panel. Adjust to your setup</li>
+        <li>The pitch detection library (<a href="https://github.com/ianprime0509/pitchy" style="color:#555">pitchy</a>) is loaded from the internet on first open. Requires HTTPS or localhost</li>
+      </ul>
+
+      <p style="font-size:12px;color:#888;line-height:1.6;border-top:1px solid #333;padding-top:12px">
+        Built with <a href="https://claude.ai/code" style="color:#22c55e">Claude Code</a>. Powered by my love for music and a telecom engineering degree 🎸
+      </p>
+
+      <p style="font-size:12px;color:#888;line-height:1.6;margin-top:8px">
+        Got feedback on the tuner? I'd love to hear it:<br>
+        Telegram: <a href="https://t.me/egorandreev" style="color:#22c55e">@egorandreev</a><br>
+        Music &amp; tech channel: <a href="https://t.me/grooveops" style="color:#22c55e">@grooveops</a>
+      </p>
+    </div>
+
+    <button class="settings-close" id="helpClose">✕</button>
+  </div>
+</div>
+
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <h3 data-i18n="settings">Settings</h3>
+
+    <div class="setting-row">
+      <label data-i18n="sensitivity" data-i18n-tip="tipSensitivity">Sensitivity</label>
+      <input type="range" id="sensitivitySlider" min="0" max="100" value="50">
+      <div class="labels" data-i18n-left="sensHigh" data-i18n-right="sensLow"><span>high</span><span>low</span></div>
+    </div>
+
+    <div class="setting-row">
+      <label data-i18n="smoothness" data-i18n-tip="tipSmoothness">Display smoothness</label>
+      <input type="range" id="smoothnessSlider" min="0" max="100" value="70">
+      <div class="labels" data-i18n-left="smoothFast" data-i18n-right="smoothStable"><span>responsive</span><span>stable</span></div>
+    </div>
+
+    <div class="setting-row">
+      <label data-i18n="greenZone" data-i18n-tip="tipGreenZone">Green zone (±cents)</label>
+      <input type="range" id="greenZoneSlider" min="3" max="25" value="13">
+      <div class="labels" data-i18n-left="gzStrict" data-i18n-right="gzSoft"><span>±3¢ strict</span><span>±25¢ soft</span></div>
+    </div>
+
+    <div class="setting-toggle">
+      <input type="checkbox" id="rmsGateEnabled" checked>
+      <label for="rmsGateEnabled" data-i18n="rmsGate" data-i18n-tip="tipRmsGate">Volume gate</label>
+    </div>
+    <div class="setting-row">
+      <input type="range" id="rmsGateSlider" min="0" max="100" value="8">
+      <div class="labels" data-i18n-left="rmsSens" data-i18n-right="rmsRough"><span>sensitive</span><span>rough</span></div>
+    </div>
+
+    <div class="setting-toggle">
+      <input type="checkbox" id="spectralEnabled" checked>
+      <label for="spectralEnabled" data-i18n="spectral" data-i18n-tip="tipSpectral">Tonal filter</label>
+    </div>
+    <div class="setting-row">
+      <input type="range" id="spectralSlider" min="0" max="100" value="50">
+      <div class="labels" data-i18n-left="specSoft" data-i18n-right="specStrict"><span>soft</span><span>strict</span></div>
+    </div>
+
+    <div class="setting-toggle">
+      <input type="checkbox" id="octaveLockEnabled" checked>
+      <label for="octaveLockEnabled" data-i18n="octaveLock" data-i18n-tip="tipOctaveLock">Octave lock</label>
+    </div>
+
+    <div class="settings-section">
+      <h4 id="devToggle">▸ Инженерные параметры</h4>
+      <div class="dev-panel" id="devPanel">
+        <div class="dev-row"><span data-tip="Минимальная уверенность алгоритма pitchy (MPM). 0.5 = принимать всё, 0.99 = только идеальный сигнал.">clarityThreshold</span><input type="number" id="devClarity" step="0.01" min="0.5" max="0.99"></div>
+        <div class="dev-row"><span data-tip="Коэффициент EMA-фильтра на центах. Выше = быстрее реакция, ниже = плавнее.">smoothingAlpha</span><input type="number" id="devAlpha" step="0.05" min="0.05" max="0.8"></div>
+        <div class="dev-row"><span data-tip="Размер окна медианного фильтра на частоте (Гц). Убивает октавные скачки. Нечётные: 3, 5, 7…">medianWindow</span><input type="number" id="devMedian" step="2" min="3" max="15"></div>
+        <div class="dev-row"><span data-tip="Ширина зелёной зоны в центах.">greenZoneCents</span><input type="number" id="devGreenZone" step="1" min="3" max="25"></div>
+        <div class="dev-row"><span data-tip="Длина видимого следа на графике (секунды).">trailDurationSec</span><input type="number" id="devTrail" step="0.5" min="1" max="10"></div>
+        <div class="dev-row"><span data-tip="Размер аудиобуфера (семплы). 4096 ≈ 93мс. Больше = точнее для E1, медленнее отклик.">bufferSize</span><input type="number" id="devBuffer" step="2048" min="2048" max="8192"></div>
+        <div class="dev-row"><span data-tip="Нижняя граница диапазона частот (Гц). E1 = 41.2 Гц.">minFrequency</span><input type="number" id="devMinFreq" step="5" min="20" max="100"></div>
+        <div class="dev-row"><span data-tip="Верхняя граница диапазона частот (Гц). Верхние позиции контрабаса ≈ 350 Гц.">maxFrequency</span><input type="number" id="devMaxFreq" step="50" min="200" max="1000"></div>
+        <div class="dev-row"><span data-tip="Бланкинг после щипка (мс). Пропускает шумный транзиент атаки.">attackBlankMs</span><input type="number" id="devAttackBlank" step="10" min="0" max="500"></div>
+        <div class="dev-row"><span data-tip="Скачок RMS для детекции атаки. 3.0 = громкость выросла в 3 раза → бланкинг.">attackRmsRatio</span><input type="number" id="devAttackRatio" step="0.5" min="1" max="10"></div>
+        <div class="dev-row"><span data-tip="Порог RMS для открытия гейта (начало ноты). Шум из окна ≈ 0.003–0.005.">rmsGateHigh</span><input type="number" id="devRmsHigh" step="0.001" min="0.001" max="0.1"></div>
+        <div class="dev-row"><span data-tip="Порог RMS для закрытия гейта (конец ноты). Адаптивно растёт к rmsGateHigh.">rmsGateLow</span><input type="number" id="devRmsLow" step="0.001" min="0.001" max="0.05"></div>
+        <div class="dev-row"><span data-tip="Скорость роста адаптивного порога RMS (за кадр). Ближе к 1 = медленнее, дальше = быстрее.">rmsGateRelease</span><input type="number" id="devRmsRelease" step="0.0005" min="0.99" max="1"></div>
+        <div class="dev-row"><span data-tip="Макс. spectral flatness. 0 = чистый тон, 1 = белый шум. Контрабас: 0.01–0.15. Шум: 0.3–0.8.">spectralThreshold</span><input type="number" id="devSpectral" step="0.05" min="0.05" max="0.8"></div>
+        <div class="dev-row"><span data-tip="Частота среза lowpass-фильтра (Гц). Ослабляет верхние гармоники, помогая детектору найти фундаментал. 0 = отключён. 350 = контрабас, 500 = с запасом.">lowpassFreq</span><input type="number" id="devLowpass" step="50" min="0" max="1000"></div>
+      </div>
+    </div>
+
+    <div class="settings-section" style="display:flex;align-items:center;gap:12px;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:8px">
+        <label data-i18n="lang" style="font-size:12px;color:#666;margin:0">Language</label>
+        <select id="langSelect" style="background:#0a0a0a;border:1px solid #333;color:#ccc;padding:2px 6px;border-radius:4px;font-family:inherit;font-size:12px">
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <button id="resetBtn" style="background:none;border:1px solid #333;color:#666;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px">Reset to defaults</button>
+    </div>
+
+    <button class="settings-close" id="settingsClose">✕</button>
+  </div>
+</div>
+
+<script type="module">
+// ============================================================
+// Constants
+// ============================================================
+import { PitchDetector } from 'https://esm.sh/pitchy@4';
+
+// ============================================================
+// i18n
+// ============================================================
+const LANG = {
+  ru: {
+    startPrompt: 'Нажми, чтобы начать',
+    micDenied: 'Разреши доступ к микрофону в настройках браузера',
+    errorPrefix: 'Ошибка',
+    settings: 'Настройки',
+    sensitivity: 'Чувствительность',
+    sensHigh: 'высокая', sensLow: 'низкая',
+    smoothness: 'Плавность отображения',
+    smoothFast: 'резкий отклик', smoothStable: 'стабильный',
+    greenZone: 'Зелёная зона (±центов)',
+    gzStrict: 'строго', gzSoft: 'мягко',
+    rmsGate: 'Гейт по громкости',
+    rmsSens: 'чувствительный', rmsRough: 'грубый',
+    spectral: 'Тональный фильтр',
+    specSoft: 'мягкий', specStrict: 'строгий',
+    octaveLock: 'Фиксация октавы',
+    devParams: 'Инженерные параметры',
+    resetDefaults: 'Сбросить настройки',
+    lang: 'Язык',
+    // tooltips
+    tipSensitivity: 'Общая чувствительность детектора. Влево — ловит тихие звуки, больше ложных. Вправо — только чёткий сигнал.',
+    tipSmoothness: 'Как быстро реагируют индикаторы и линия. Влево — резче, вправо — стабильнее.',
+    tipGreenZone: 'Ширина зелёного коридора. ±3¢ — идеальная интонация, ±25¢ — допуск в четверть полутона.',
+    tipRmsGate: 'Адаптивный гейт по громкости. Пропускает звук когда он громче фона. После щипка дослушивает хвост ноты.',
+    tipSpectral: 'Анализирует форму спектра. У ноты — пики на гармониках. У шума — ровно. Отсекает «плоские» кадры.',
+    tipOctaveLock: 'Фиксирует октаву после щипка. Не даёт прыгать G1↔G2 из-за гармоник. Разблокируется при новом щипке.',
+  },
+  en: {
+    startPrompt: 'Tap to start',
+    micDenied: 'Allow microphone access in browser settings',
+    errorPrefix: 'Error',
+    settings: 'Settings',
+    sensitivity: 'Sensitivity',
+    sensHigh: 'high', sensLow: 'low',
+    smoothness: 'Display smoothness',
+    smoothFast: 'responsive', smoothStable: 'stable',
+    greenZone: 'Green zone (±cents)',
+    gzStrict: 'strict', gzSoft: 'soft',
+    rmsGate: 'Volume gate',
+    rmsSens: 'sensitive', rmsRough: 'rough',
+    spectral: 'Tonal filter',
+    specSoft: 'soft', specStrict: 'strict',
+    octaveLock: 'Octave lock',
+    devParams: 'Engineering parameters',
+    resetDefaults: 'Reset to defaults',
+    lang: 'Language',
+    tipSensitivity: 'Overall detector sensitivity. Left — catches quiet sounds, more false positives. Right — clear signal only.',
+    tipSmoothness: 'How fast indicators and line respond. Left — snappy, right — stable.',
+    tipGreenZone: 'Width of green corridor. ±3¢ — near-perfect intonation, ±25¢ — quarter semitone tolerance.',
+    tipRmsGate: 'Adaptive volume gate. Passes sound only when louder than background. Follows note tail after pluck.',
+    tipSpectral: 'Analyzes spectrum shape. Notes have harmonic peaks. Noise is flat. Rejects "flat" frames.',
+    tipOctaveLock: 'Locks octave after pluck. Prevents G1↔G2 jumps from strong harmonics. Unlocks on new pluck.',
+  }
+};
+
+let currentLang = localStorage.getItem('tuner-lang') || (navigator.language.startsWith('ru') ? 'ru' : 'en');
+
+function t(key) { return LANG[currentLang][key] || LANG.en[key] || key; }
+
+function applyLang() {
+  document.getElementById('startScreen').querySelector('h1').textContent = t('startPrompt');
+  // Settings panel
+  document.querySelector('#settingsOverlay h3').textContent = t('settings');
+  // Labels — use data-i18n attribute to find elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    el.textContent = t(key);
+  });
+  // Tooltips
+  document.querySelectorAll('[data-i18n-tip]').forEach(el => {
+    el.dataset.tip = t(el.dataset.i18nTip);
+  });
+  // Slider labels
+  document.querySelectorAll('[data-i18n-left]').forEach(el => {
+    el.querySelector('span:first-child').textContent = t(el.dataset.i18nLeft);
+    el.querySelector('span:last-child').textContent = t(el.dataset.i18nRight);
+  });
+  // Dev toggle
+  const devToggle = document.getElementById('devToggle');
+  const isOpen = document.getElementById('devPanel').classList.contains('open');
+  devToggle.textContent = (isOpen ? '▾' : '▸') + ' ' + t('devParams');
+  // Reset button
+  document.getElementById('resetBtn').textContent = t('resetDefaults');
+  // Lang selector
+  document.getElementById('langSelect').value = currentLang;
+  // Help panel: show/hide language-specific content
+  document.querySelectorAll('.help-content').forEach(el => {
+    el.classList.toggle('active', el.dataset.helpLang === currentLang);
+  });
+  // HTML lang
+  document.documentElement.lang = currentLang;
+  localStorage.setItem('tuner-lang', currentLang);
+}
+
+const VERSION = '1.0.0';
+const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const A4_FREQ = 440;
+const A4_MIDI = 69;
+const YELLOW_ZONE_CENTS = 25;
+const DIM_TIMEOUT_MS = 1500;
+const LED_COUNT = 21;
+const LED_GREEN_RADIUS = 2;
+const LED_YELLOW_RADIUS = 4;
+const RMS_SMOOTH_FACTOR = 0.7;
+
+const STRINGS = {
+  'E1': { midi: 28, freq: 41.20 },
+  'A1': { midi: 33, freq: 55.00 },
+  'D2': { midi: 38, freq: 73.42 },
+  'G2': { midi: 43, freq: 98.00 },
+};
+
+// ============================================================
+// Configuration (mutable — sliders update these)
+// ============================================================
+const defaults = {
+  bufferSize: 4096,
+  clarityThreshold: 0.92,
+  minFrequency: 30,
+  maxFrequency: 500,
+  smoothingAlpha: 0.15,
+  medianWindow: 7,
+  greenZoneCents: 13,
+  trailDurationSec: 3,
+  attackBlankMs: 120,
+  attackRmsRatio: 3.0,
+  rmsGateHigh: 0.008,
+  rmsGateLow: 0.003,
+  rmsGateRelease: 0.9985,
+  rmsGateEnabled: true,
+  spectralThreshold: 0.25,
+  spectralEnabled: true,
+  octaveLockEnabled: true,
+  lowpassFreq: 350,         // lowpass cutoff Hz (0 = disabled). Weakens upper harmonics.
+};
+
+const config = { ...defaults };
+
+// ============================================================
+// Audio utilities
+// ============================================================
+function freqToMidi(freq) {
+  return 12 * Math.log2(freq / A4_FREQ) + A4_MIDI;
+}
+
+function midiToFreq(midi) {
+  return A4_FREQ * Math.pow(2, (midi - A4_MIDI) / 12);
+}
+
+function midiToNoteName(midi) {
+  const note = NOTE_NAMES[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return `${note}${octave}`;
+}
+
+function freqToNoteData(freq) {
+  const midi = freqToMidi(freq);
+  const roundedMidi = Math.round(midi);
+  const cents = (midi - roundedMidi) * 100;
+  return { midi: roundedMidi, name: midiToNoteName(roundedMidi), cents, freq };
+}
+
+function computeRms(buffer) {
+  let sum = 0;
+  for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
+  return Math.sqrt(sum / buffer.length);
+}
+
+function computeSpectralFlatness(freqData) {
+  const len = freqData.length;
+  let sumLog = 0;
+  let sumLinear = 0;
+  for (let i = 0; i < len; i++) {
+    const linear = Math.pow(10, freqData[i] / 10);
+    sumLog += Math.log(linear + 1e-20);
+    sumLinear += linear;
+  }
+  const geometricMean = Math.exp(sumLog / len);
+  const arithmeticMean = sumLinear / len;
+  return geometricMean / (arithmeticMean + 1e-20);
+}
+
+// ============================================================
+// Color helpers
+// ============================================================
+function centsToColor(cents) {
+  const abs = Math.abs(cents);
+  if (abs < config.greenZoneCents) return '#22c55e';
+  if (abs < YELLOW_ZONE_CENTS) return '#eab308';
+  return '#ef4444';
+}
+
+function centsToColorClass(cents) {
+  const abs = Math.abs(cents);
+  if (abs < config.greenZoneCents) return 'color-green';
+  if (abs < YELLOW_ZONE_CENTS) return 'color-yellow';
+  return 'color-red';
+}
+
+// ============================================================
+// Signal processing filters
+// ============================================================
+function medianFilter(value) {
+  const buf = pipelineState.medianBuffer;
+  buf.push(value);
+  if (buf.length > config.medianWindow) buf.shift();
+  const sorted = [...buf].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+function emaFilter(cents) {
+  const alpha = config.smoothingAlpha;
+  pipelineState.lastSmoothedCents = alpha * cents + (1 - alpha) * pipelineState.lastSmoothedCents;
+  return pipelineState.lastSmoothedCents;
+}
+
+// ============================================================
+// Pipeline state
+// ============================================================
+const pipelineState = {
+  medianBuffer: [],
+  lastSmoothedCents: 0,
+  lastNote: null,
+  lastNoteMidi: null,
+  // RMS & attack detection
+  lastRms: 0,
+  attackBlankedUntil: 0,
+  // Octave lock
+  lastStableFreq: 0,
+  octaveLocked: false,       // true while lock is active (same note sustaining)
+  // Adaptive RMS gate
+  rmsGateOpen: false,
+  adaptiveThreshold: 0.008,
+};
+
+// ============================================================
+// Audio setup
+// ============================================================
+let audioContext = null;
+let analyser = null;
+let detector = null;
+let inputBuffer = null;
+let freqBuffer = null;
+let lowpassNode = null;
+
+async function initAudio() {
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+  });
+
+  const source = audioContext.createMediaStreamSource(stream);
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = config.bufferSize;
+
+  // Lowpass filter: weakens upper harmonics, helps pitch detection pick fundamental
+  lowpassNode = audioContext.createBiquadFilter();
+  lowpassNode.type = 'lowpass';
+  lowpassNode.frequency.value = config.lowpassFreq;
+  lowpassNode.Q.value = 0.7; // gentle rolloff
+
+  source.connect(lowpassNode);
+  lowpassNode.connect(analyser);
+
+  inputBuffer = new Float32Array(analyser.fftSize);
+  freqBuffer = new Float32Array(analyser.frequencyBinCount);
+  detector = PitchDetector.forFloat32Array(analyser.fftSize);
+}
+
+// ============================================================
+// Pitch detection pipeline
+// ============================================================
+
+// Sub-step: attack detection and blanking
+function processAttackDetection(rms, now) {
+  if (pipelineState.lastRms > 0 && rms > pipelineState.lastRms * config.attackRmsRatio) {
+    pipelineState.attackBlankedUntil = now + config.attackBlankMs;
+    pipelineState.medianBuffer = [];
+    // Unlock octave lock — new note being played
+    pipelineState.octaveLocked = false;
+    pipelineState.lastStableFreq = 0;
+  }
+  pipelineState.lastRms = rms + (pipelineState.lastRms - rms) * RMS_SMOOTH_FACTOR;
+  return now < pipelineState.attackBlankedUntil;
+}
+
+// Sub-step: adaptive RMS gate
+function processRmsGate(rms) {
+  if (!config.rmsGateEnabled) return true;
+
+  if (!pipelineState.rmsGateOpen) {
+    if (rms >= config.rmsGateHigh) {
+      pipelineState.rmsGateOpen = true;
+      pipelineState.adaptiveThreshold = config.rmsGateLow;
+      return true;
+    }
+    return false;
+  }
+
+  pipelineState.adaptiveThreshold *= (1 / config.rmsGateRelease);
+  if (pipelineState.adaptiveThreshold > config.rmsGateHigh) {
+    pipelineState.adaptiveThreshold = config.rmsGateHigh;
+  }
+  if (rms < pipelineState.adaptiveThreshold) {
+    pipelineState.rmsGateOpen = false;
+    pipelineState.adaptiveThreshold = config.rmsGateHigh;
+    return false;
+  }
+  return true;
+}
+
+// Sub-step: spectral flatness gate
+function processSpectralGate() {
+  if (!config.spectralEnabled) return true;
+  analyser.getFloatFrequencyData(freqBuffer);
+  return computeSpectralFlatness(freqBuffer) <= config.spectralThreshold;
+}
+
+// Main detection: orchestrates all sub-steps
+function detectPitch() {
+  if (!analyser || !detector) return null;
+
+  analyser.getFloatTimeDomainData(inputBuffer);
+  const rms = computeRms(inputBuffer);
+  const now = performance.now();
+
+  // [1] Attack blanking
+  if (processAttackDetection(rms, now)) return null;
+
+  // [2] RMS gate
+  if (!processRmsGate(rms)) return null;
+
+  // [3] Spectral flatness gate
+  if (!processSpectralGate()) return null;
+
+  // [4] Pitch detection
+  const [rawFreq, clarity] = detector.findPitch(inputBuffer, audioContext.sampleRate);
+  if (clarity < config.clarityThreshold) return null;
+  if (rawFreq < config.minFrequency || rawFreq > config.maxFrequency) return null;
+
+  // [5] Median filter on Hz
+  let filteredFreq = medianFilter(rawFreq);
+
+  // [6] Octave lock: snap back octave jumps unless a new attack was detected
+  if (config.octaveLockEnabled && pipelineState.lastStableFreq > 0 && pipelineState.octaveLocked) {
+    const ratio = filteredFreq / pipelineState.lastStableFreq;
+    if (ratio > 1.9 && ratio < 2.1) {
+      filteredFreq = filteredFreq / 2;
+    } else if (ratio > 0.48 && ratio < 0.52) {
+      filteredFreq = filteredFreq * 2;
+    }
+  }
+  // Update stable frequency with slow tracking
+  if (pipelineState.lastStableFreq > 0) {
+    pipelineState.lastStableFreq = 0.9 * pipelineState.lastStableFreq + 0.1 * filteredFreq;
+  } else {
+    pipelineState.lastStableFreq = filteredFreq;
+  }
+  pipelineState.octaveLocked = true;
+
+  const noteData = freqToNoteData(filteredFreq);
+
+  // [7] Note change detection
+  let displayCents = noteData.cents;
+  let noteChanged = false;
+  if (pipelineState.lastNoteMidi !== null && noteData.midi !== pipelineState.lastNoteMidi) {
+    noteChanged = true;
+    pipelineState.medianBuffer = [];
+    pipelineState.lastSmoothedCents = displayCents;
+  }
+
+  // [8] EMA smoothing on cents
+  const smoothedCents = emaFilter(displayCents);
+
+  pipelineState.lastNote = noteData.name;
+  pipelineState.lastNoteMidi = noteData.midi;
+
+  return {
+    name: noteData.name,
+    midi: noteData.midi,
+    cents: smoothedCents,
+    rawCents: displayCents,
+    clarity,
+    noteChanged,
+  };
+}
+
+// ============================================================
+// UI: LED Bar
+// ============================================================
+const ledBar = document.getElementById('ledBar');
+const ledCenterMark = document.getElementById('ledCenterMark');
+const ledSegments = [];
+
+(function createLedBar() {
+  for (let i = 0; i < LED_COUNT; i++) {
+    const seg = document.createElement('div');
+    seg.className = 'led-segment';
+    ledBar.insertBefore(seg, ledBar.lastElementChild);
+    ledSegments.push(seg);
+  }
+})();
+
+function updateLedBar(cents) {
+  const maxCents = 100;
+  const center = Math.floor(LED_COUNT / 2);
+  const inTune = Math.abs(cents) < config.greenZoneCents;
+
+  ledCenterMark.classList.toggle('lit', inTune);
+
+  const pos = center + (cents / maxCents) * center;
+
+  for (let i = 0; i < LED_COUNT; i++) {
+    const seg = ledSegments[i];
+    const distFromCenter = Math.abs(i - center);
+    const distFromPos = Math.abs(i - pos);
+
+    let color;
+    if (distFromCenter <= LED_GREEN_RADIUS) color = '#22c55e';
+    else if (distFromCenter <= LED_YELLOW_RADIUS) color = '#eab308';
+    else color = '#ef4444';
+
+    let opacity;
+    if (distFromPos < 0.8) {
+      opacity = 1.0;
+      seg.style.boxShadow = `0 0 6px ${color}`;
+    } else if (distFromPos < 1.8) {
+      opacity = 0.6;
+      seg.style.boxShadow = 'none';
+    } else if (distFromPos < 2.8) {
+      opacity = 0.25;
+      seg.style.boxShadow = 'none';
+    } else {
+      opacity = 0.08;
+      seg.style.boxShadow = 'none';
+    }
+
+    seg.style.border = (i === center) ? '1px solid rgba(255,255,255,0.3)' : 'none';
+    seg.style.background = color;
+    seg.style.opacity = opacity;
+  }
+}
+
+function dimLedBar() {
+  ledCenterMark.classList.remove('lit');
+  for (const seg of ledSegments) {
+    seg.style.opacity = 0.05;
+    seg.style.boxShadow = 'none';
+  }
+}
+
+// ============================================================
+// UI: Note display
+// ============================================================
+const noteDisplay = document.getElementById('noteDisplay');
+const noteLetterEl = document.getElementById('noteLetter');
+const noteAccidentalEl = document.getElementById('noteAccidental');
+const noteOctaveEl = document.getElementById('noteOctave');
+const noteNameEl = document.querySelector('.note-name');
+const noteCentsArea = document.getElementById('noteCentsArea');
+const noteCentsInner = document.getElementById('noteCentsInner');
+const noteIntuneLeft = document.getElementById('noteIntuneLeft');
+const noteIntuneRight = document.getElementById('noteIntuneRight');
+let dimTimeout = null;
+
+function parseNoteName(name) {
+  const match = name.match(/^([A-G])(♯|♭)?(-?\d+)$/);
+  if (!match) return { letter: name, accidental: '', octave: '' };
+  return { letter: match[1], accidental: match[2] || '', octave: match[3] };
+}
+
+function setCentsDisplay(triLeft, text, triRight) {
+  while (noteCentsInner.firstChild) noteCentsInner.removeChild(noteCentsInner.firstChild);
+  for (const [content, cls] of [[triLeft, 'cents-triangle'], [text, null], [triRight, 'cents-triangle']]) {
+    if (!content) continue;
+    const s = document.createElement('span');
+    if (cls) s.className = cls;
+    s.textContent = content;
+    noteCentsInner.appendChild(s);
+  }
+}
+
+function formatCents(rounded) {
+  const abs = Math.abs(rounded);
+  if (abs === 0) return '';
+  return (abs < 10 ? '0' + abs : '' + abs) + '¢';
+}
+
+function updateNoteDisplay(result) {
+  noteDisplay.classList.remove('dim');
+  const color = centsToColorClass(result.cents);
+  const parts = parseNoteName(result.name);
+  noteLetterEl.textContent = parts.letter;
+  noteAccidentalEl.textContent = parts.accidental;
+  noteOctaveEl.textContent = parts.octave;
+  noteNameEl.className = `note-name ${color}`;
+
+  const inTune = Math.abs(result.cents) < config.greenZoneCents;
+  noteIntuneLeft.classList.toggle('lit', inTune);
+  noteIntuneRight.classList.toggle('lit', inTune);
+
+  const rounded = Math.round(result.cents);
+  const centsStr = formatCents(rounded);
+
+  noteCentsArea.className = 'note-cents-area';
+  noteCentsArea.style.color = centsToColor(result.cents);
+
+  if (inTune) {
+    noteCentsArea.classList.add('pos-center');
+    const text = rounded !== 0 ? (rounded > 0 ? '+' : '−') + centsStr : '✓';
+    setCentsDisplay('▸', text, '◂');
+  } else if (rounded > 0) {
+    noteCentsArea.classList.add('pos-top');
+    setCentsDisplay('▾', '+' + centsStr, null);
+  } else {
+    noteCentsArea.classList.add('pos-bottom');
+    setCentsDisplay('▴', '−' + centsStr, null);
+  }
+
+  clearTimeout(dimTimeout);
+  dimTimeout = setTimeout(() => {
+    noteDisplay.classList.add('dim');
+    noteLetterEl.textContent = '—';
+    noteAccidentalEl.textContent = '';
+    noteOctaveEl.textContent = '';
+    setCentsDisplay(null, null, null);
+    noteIntuneLeft.classList.remove('lit');
+    noteIntuneRight.classList.remove('lit');
+    dimLedBar();
+  }, DIM_TIMEOUT_MS);
+}
+
+// ============================================================
+// UI: Lane canvas
+// ============================================================
+const canvas = document.getElementById('laneCanvas');
+const ctx = canvas.getContext('2d');
+const trail = [];
+let currentPitch = null;
+
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const targetW = Math.round(rect.width * devicePixelRatio);
+  const targetH = Math.round(rect.height * devicePixelRatio);
+  if (canvas.width === targetW && canvas.height === targetH) return;
+  canvas.width = targetW;
+  canvas.height = targetH;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+function addTrailPoint(result) {
+  trail.push({
+    time: performance.now(),
+    cents: result.cents,
+    color: centsToColor(result.cents),
+    noteName: result.name,
+    noteChanged: result.noteChanged,
+  });
+}
+
+function renderLane() {
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+  if (w === 0 || h === 0) return;
+
+  const now = performance.now();
+  const windowMs = config.trailDurationSec * 1000;
+  const maxCents = 100;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Prune old trail points
+  while (trail.length > 0 && (now - trail[0].time) > windowMs) {
+    trail.shift();
+  }
+
+  const centerY = h / 2;
+  const centsToY = (c) => centerY - (c / maxCents) * centerY;
+
+  // Green corridor
+  const corridorTop = centsToY(config.greenZoneCents);
+  const corridorBottom = centsToY(-config.greenZoneCents);
+  ctx.fillStyle = 'rgba(34, 197, 94, 0.06)';
+  ctx.fillRect(0, corridorTop, w, corridorBottom - corridorTop);
+
+  ctx.strokeStyle = 'rgba(34, 197, 94, 0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(0, corridorTop);
+  ctx.lineTo(w, corridorTop);
+  ctx.moveTo(0, corridorBottom);
+  ctx.lineTo(w, corridorBottom);
+  ctx.stroke();
+
+  // Center line
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, centerY);
+  ctx.lineTo(w, centerY);
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = 'rgba(255, 100, 100, 0.3)';
+  ctx.font = '11px monospace';
+  ctx.fillText('♯', 6, 16);
+  ctx.fillText('♭', 6, h - 8);
+
+  // Time mapping: "now" = right edge
+  const timeToX = (t) => ((t - now + windowMs) / windowMs) * w;
+
+  // Current pitch indicator — always at right edge, independent of trail
+  if (currentPitch && (now - currentPitch.time) < DIM_TIMEOUT_MS) {
+    const indicatorY = centsToY(currentPitch.cents);
+
+    ctx.save();
+    ctx.strokeStyle = currentPitch.color;
+    ctx.globalAlpha = 0.15;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, indicatorY);
+    ctx.lineTo(w, indicatorY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = currentPitch.color;
+    ctx.shadowColor = currentPitch.color;
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.arc(w - 12, indicatorY, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  if (trail.length < 2) return;
+
+  // Trail segments
+  for (let i = 1; i < trail.length; i++) {
+    const prev = trail[i - 1];
+    const curr = trail[i];
+
+    // Note change divider
+    if (curr.noteChanged) {
+      const x = timeToX(curr.time);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, 4);
+      ctx.lineTo(x, h - 4);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.font = '10px monospace';
+      if (prev.noteName) {
+        ctx.fillText(prev.noteName, x - ctx.measureText(prev.noteName).width - 4, 14);
+      }
+      ctx.fillText(curr.noteName, x + 4, 14);
+      ctx.restore();
+      continue; // no connecting line across note change
+    }
+
+    const x1 = timeToX(prev.time);
+    const y1 = centsToY(prev.cents);
+    const x2 = timeToX(curr.time);
+    const y2 = centsToY(curr.cents);
+    const age = (now - curr.time) / windowMs;
+
+    ctx.save();
+    ctx.strokeStyle = curr.color;
+    ctx.globalAlpha = 0.1 + 0.9 * (1 - age);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Trail endpoint dot
+  const last = trail[trail.length - 1];
+  ctx.save();
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = last.color;
+  ctx.beginPath();
+  ctx.arc(timeToX(last.time), centsToY(last.cents), 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ============================================================
+// Settings
+// ============================================================
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsOverlay = document.getElementById('settingsOverlay');
+const settingsClose = document.getElementById('settingsClose');
+const devPanel = document.getElementById('devPanel');
+const devToggle = document.getElementById('devToggle');
+
+// Help panel
+const helpOverlay = document.getElementById('helpOverlay');
+document.getElementById('helpBtn').addEventListener('click', () => helpOverlay.classList.add('open'));
+helpOverlay.addEventListener('click', (e) => { if (e.target === helpOverlay) helpOverlay.classList.remove('open'); });
+document.getElementById('helpClose').addEventListener('click', () => helpOverlay.classList.remove('open'));
+
+function applySensitivity(value) {
+  const t = value / 100;
+  config.clarityThreshold = 0.95 - t * 0.25; // 0.95 (low sens) → 0.70 (high sens)
+  syncDevInputs();
+}
+
+function applySmoothness(value) {
+  const t = value / 100;
+  config.smoothingAlpha = 0.4 - t * 0.3;
+  config.medianWindow = Math.round(3 + t * 8);
+  syncDevInputs();
+}
+
+function applyRmsGate(value) {
+  const t = value / 100;
+  config.rmsGateHigh = 0.003 + t * 0.027;
+  config.rmsGateLow = 0.001 + t * 0.009;
+  syncDevInputs();
+}
+
+function applySpectral(value) {
+  const t = value / 100;
+  config.spectralThreshold = 0.4 - t * 0.3;
+  syncDevInputs();
+}
+
+function syncDevInputs() {
+  document.getElementById('devClarity').value = config.clarityThreshold.toFixed(2);
+  document.getElementById('devAlpha').value = config.smoothingAlpha.toFixed(2);
+  document.getElementById('devMedian').value = config.medianWindow;
+  document.getElementById('devGreenZone').value = config.greenZoneCents;
+  document.getElementById('devTrail').value = config.trailDurationSec;
+  document.getElementById('devBuffer').value = config.bufferSize;
+  document.getElementById('devMinFreq').value = config.minFrequency;
+  document.getElementById('devMaxFreq').value = config.maxFrequency;
+  document.getElementById('devAttackBlank').value = config.attackBlankMs;
+  document.getElementById('devAttackRatio').value = config.attackRmsRatio;
+  document.getElementById('devRmsHigh').value = config.rmsGateHigh;
+  document.getElementById('devRmsLow').value = config.rmsGateLow;
+  document.getElementById('devRmsRelease').value = config.rmsGateRelease;
+  document.getElementById('devSpectral').value = config.spectralThreshold;
+  document.getElementById('devLowpass').value = config.lowpassFreq;
+}
+
+// Settings panel events
+settingsBtn.addEventListener('click', () => { settingsOverlay.classList.add('open'); syncDevInputs(); });
+settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) settingsOverlay.classList.remove('open'); });
+settingsClose.addEventListener('click', () => settingsOverlay.classList.remove('open'));
+devToggle.addEventListener('click', () => {
+  const open = devPanel.classList.toggle('open');
+  devToggle.textContent = (open ? '▾' : '▸') + ' ' + t('devParams');
+});
+
+// Slider defaults (for UI state, separate from config defaults)
+const SLIDER_DEFAULTS = { sensitivity: 50, smoothness: 70, greenZone: 13, rmsGate: 8, spectral: 50 };
+
+// localStorage save/load
+const STORAGE_KEY = 'tuner-settings';
+
+function saveSettings() {
+  const data = {
+    sliders: {
+      sensitivity: +document.getElementById('sensitivitySlider').value,
+      smoothness: +document.getElementById('smoothnessSlider').value,
+      greenZone: +document.getElementById('greenZoneSlider').value,
+      rmsGate: +document.getElementById('rmsGateSlider').value,
+      spectral: +document.getElementById('spectralSlider').value,
+    },
+    checkboxes: {
+      rmsGateEnabled: document.getElementById('rmsGateEnabled').checked,
+      spectralEnabled: document.getElementById('spectralEnabled').checked,
+      octaveLockEnabled: document.getElementById('octaveLockEnabled').checked,
+    },
+    dev: { ...config },
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    // Restore sliders
+    if (data.sliders) {
+      document.getElementById('sensitivitySlider').value = data.sliders.sensitivity;
+      document.getElementById('smoothnessSlider').value = data.sliders.smoothness;
+      document.getElementById('greenZoneSlider').value = data.sliders.greenZone;
+      document.getElementById('rmsGateSlider').value = data.sliders.rmsGate;
+      document.getElementById('spectralSlider').value = data.sliders.spectral;
+    }
+    // Restore checkboxes
+    if (data.checkboxes) {
+      document.getElementById('rmsGateEnabled').checked = data.checkboxes.rmsGateEnabled;
+      document.getElementById('spectralEnabled').checked = data.checkboxes.spectralEnabled;
+      document.getElementById('octaveLockEnabled').checked = data.checkboxes.octaveLockEnabled;
+    }
+    // Restore config from dev values
+    if (data.dev) {
+      for (const key of Object.keys(defaults)) {
+        if (key in data.dev) config[key] = data.dev[key];
+      }
+    }
+    return true;
+  } catch (e) { return false; }
+}
+
+function resetSettings() {
+  localStorage.removeItem(STORAGE_KEY);
+  Object.assign(config, defaults);
+  document.getElementById('sensitivitySlider').value = SLIDER_DEFAULTS.sensitivity;
+  document.getElementById('smoothnessSlider').value = SLIDER_DEFAULTS.smoothness;
+  document.getElementById('greenZoneSlider').value = SLIDER_DEFAULTS.greenZone;
+  document.getElementById('rmsGateSlider').value = SLIDER_DEFAULTS.rmsGate;
+  document.getElementById('spectralSlider').value = SLIDER_DEFAULTS.spectral;
+  document.getElementById('rmsGateEnabled').checked = defaults.rmsGateEnabled;
+  document.getElementById('spectralEnabled').checked = defaults.spectralEnabled;
+  document.getElementById('octaveLockEnabled').checked = defaults.octaveLockEnabled;
+  applySensitivity(SLIDER_DEFAULTS.sensitivity);
+  applySmoothness(SLIDER_DEFAULTS.smoothness);
+  applyRmsGate(SLIDER_DEFAULTS.rmsGate);
+  applySpectral(SLIDER_DEFAULTS.spectral);
+  syncDevInputs();
+}
+
+// All settings changes → save
+function onSettingChange() { saveSettings(); }
+
+// Main settings sliders
+document.getElementById('sensitivitySlider').addEventListener('input', (e) => { applySensitivity(+e.target.value); onSettingChange(); });
+document.getElementById('smoothnessSlider').addEventListener('input', (e) => { applySmoothness(+e.target.value); onSettingChange(); });
+document.getElementById('greenZoneSlider').addEventListener('input', (e) => { config.greenZoneCents = +e.target.value; syncDevInputs(); onSettingChange(); });
+document.getElementById('octaveLockEnabled').addEventListener('change', (e) => { config.octaveLockEnabled = e.target.checked; onSettingChange(); });
+document.getElementById('rmsGateEnabled').addEventListener('change', (e) => { config.rmsGateEnabled = e.target.checked; onSettingChange(); });
+document.getElementById('rmsGateSlider').addEventListener('input', (e) => { applyRmsGate(+e.target.value); onSettingChange(); });
+document.getElementById('spectralEnabled').addEventListener('change', (e) => { config.spectralEnabled = e.target.checked; onSettingChange(); });
+document.getElementById('spectralSlider').addEventListener('input', (e) => { applySpectral(+e.target.value); onSettingChange(); });
+
+// Dev panel inputs
+for (const [id, key] of [
+  ['devClarity', 'clarityThreshold'], ['devAlpha', 'smoothingAlpha'],
+  ['devMedian', 'medianWindow'], ['devGreenZone', 'greenZoneCents'],
+  ['devTrail', 'trailDurationSec'], ['devBuffer', 'bufferSize'],
+  ['devMinFreq', 'minFrequency'], ['devMaxFreq', 'maxFrequency'],
+  ['devAttackBlank', 'attackBlankMs'], ['devAttackRatio', 'attackRmsRatio'],
+  ['devRmsHigh', 'rmsGateHigh'], ['devRmsLow', 'rmsGateLow'],
+  ['devRmsRelease', 'rmsGateRelease'], ['devSpectral', 'spectralThreshold'],
+  ['devLowpass', 'lowpassFreq'],
+]) {
+  document.getElementById(id).addEventListener('change', (e) => {
+    config[key] = +e.target.value;
+    if (key === 'bufferSize' && analyser) {
+      analyser.fftSize = config.bufferSize;
+      inputBuffer = new Float32Array(analyser.fftSize);
+      freqBuffer = new Float32Array(analyser.frequencyBinCount);
+      detector = PitchDetector.forFloat32Array(analyser.fftSize);
+    }
+    if (key === 'lowpassFreq' && lowpassNode) {
+      lowpassNode.frequency.value = config.lowpassFreq;
+    }
+    onSettingChange();
+  });
+}
+
+// Reset button
+document.getElementById('resetBtn').addEventListener('click', resetSettings);
+
+// Language selector
+document.getElementById('langSelect').addEventListener('change', (e) => {
+  currentLang = e.target.value;
+  applyLang();
+});
+
+// Init: load saved settings or apply defaults
+if (!loadSettings()) {
+  applySensitivity(SLIDER_DEFAULTS.sensitivity);
+  applySmoothness(SLIDER_DEFAULTS.smoothness);
+  applyRmsGate(SLIDER_DEFAULTS.rmsGate);
+  applySpectral(SLIDER_DEFAULTS.spectral);
+} else {
+  // Re-derive slider-controlled values from loaded config
+  syncDevInputs();
+}
+
+// Apply language
+applyLang();
+
+// ============================================================
+// Controls: pause
+// ============================================================
+let paused = false;
+document.getElementById('pauseBtn').addEventListener('click', () => {
+  paused = !paused;
+  const btn = document.getElementById('pauseBtn');
+  btn.classList.toggle('active', paused);
+  btn.textContent = paused ? '▶' : '⏸';
+});
+
+// ============================================================
+// Startup & main loop
+// ============================================================
+document.getElementById('startScreen').addEventListener('click', async () => {
+  const startScreen = document.getElementById('startScreen');
+  startScreen.classList.add('hidden');
+  try {
+    await initAudio();
+    requestAnimationFrame(() => {
+      resizeCanvas();
+      startMainLoop();
+    });
+  } catch (err) {
+    startScreen.classList.remove('hidden');
+    startScreen.querySelector('h1').textContent =
+      err.name === 'NotAllowedError'
+        ? t('micDenied')
+        : `${t('errorPrefix')}: ${err.message}`;
+  }
+});
+
+function startMainLoop() {
+  function loop() {
+    if (!paused) {
+      const result = detectPitch();
+      if (result) {
+        updateNoteDisplay(result);
+        updateLedBar(result.cents);
+        addTrailPoint(result);
+        currentPitch = { cents: result.cents, color: centsToColor(result.cents), time: performance.now() };
+      }
+      renderLane();
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+</script>
+
+</body>
+</html>
