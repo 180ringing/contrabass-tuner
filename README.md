@@ -4,7 +4,7 @@
 
 A browser-based chromatic tuner optimized for double bass (contrabass). Single HTML file, works in any modern browser, fullscreen — designed to be visible from a distance while practicing.
 
-**[▶ Open Tuner](https://egorandreev.github.io/contrabass-tuner/)** — works directly in your browser, no installation needed.
+**[▶ Open Tuner](https://180ringing.github.io/contrabass-tuner/)** — works directly in your browser, no installation needed.
 
 ![Contrabass Tuner Screenshot](screenshot.png)
 
@@ -28,7 +28,7 @@ A web page was the simplest solution: one file, open in browser, fullscreen on a
 
 ## Quick Start
 
-**Option 1: Online** — open the [live version](https://egorandreev.github.io/contrabass-tuner/)
+**Option 1: Online** — open the [live version](https://180ringing.github.io/contrabass-tuner/)
 
 **Option 2: Local** — download `index.html` and open in browser. Requires internet for first load (pitchy library from CDN).
 
