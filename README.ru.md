@@ -37,17 +37,54 @@
 ## Путь сигнала
 
 ```
-Микрофон → Lowpass-фильтр → AnalyserNode
-  → [1] Детекция атаки (бланкинг)
-  → [2] RMS Gate (адаптивный порог громкости)
-  → [3] Spectral Flatness Gate (шум vs нота)
-  → [4] Pitch Detection (pitchy MPM)
-  → [5] Медианный фильтр (убивает октавные скачки)
-  → [6] Octave Lock (snap ×2/×0.5)
-  → [7] Нота + центы
-  → [8] Детекция смены ноты
-  → [9] EMA-сглаживание
-  → Отображение: нота, LED-шкала, Lane canvas
+Микрофон
+  │
+  ▼
+Lowpass Filter ─────────── lowpassFreq: 350 Гц
+  │                        Ослабляет верхние гармоники
+  ▼
+AnalyserNode ──────────── bufferSize: 4096 (~93 мс)
+  │
+  ├─ волна (inputBuffer)
+  │    │
+  │    ▼
+  │  [1] Attack Detection ─ attackRmsRatio: 3.0
+  │    │                     attackBlankMs: 120
+  │    │                     + сброс octave lock
+  │    ▼
+  │  [2] RMS Gate ────────── rmsGateHigh / rmsGateLow
+  │    │                     rmsGateRelease: 0.9985
+  │    ▼
+  ├─ спектр (freqBuffer)
+  │    │
+  │    ▼
+  │  [3] Spectral Gate ──── spectralThreshold: 0.25
+  │    │                     0=тон, 1=шум
+  │    ▼
+  │  [4] Pitch Detection ── clarityThreshold: 0.92
+  │    │  (pitchy MPM)       minFrequency / maxFrequency
+  │    ▼
+  │  [5] Median Filter ──── medianWindow: 7
+  │    │  (на Гц)
+  │    ▼
+  │  [6] Octave Lock ────── octaveLockEnabled
+  │    │  snap ×2/×0.5
+  │    ▼
+  │  [7] Freq → Note+Cents
+  │    │
+  │    ▼
+  │  [8] Note Change Detection
+  │    │
+  │    ▼
+  │  [9] EMA Filter ─────── smoothingAlpha: 0.15
+  │    │  (на центах)
+  │    ▼
+  ├────┼────────────┐
+  ▼    ▼            ▼
+Нота  LED-шкала   Lane (canvas)
+±¢    21 сегм.    trail + коридор
+▸ ◂   + метка     greenZoneCents: 13
+                  trailDurationSec: 3
 ```
 
 ## Настройки

@@ -37,17 +37,54 @@ Microphone access required. Works on Chrome, Firefox, Edge (desktop and mobile).
 ## Signal Path
 
 ```
-Microphone → Lowpass Filter → AnalyserNode
-  → [1] Attack Detection (blanking)
-  → [2] RMS Gate (adaptive volume threshold)
-  → [3] Spectral Flatness Gate (noise vs tone)
-  → [4] Pitch Detection (pitchy MPM)
-  → [5] Median Filter (kills octave jumps)
-  → [6] Octave Lock (snap back ×2/×0.5)
-  → [7] Note + Cents conversion
-  → [8] Note Change Detection
-  → [9] EMA Smoothing
-  → Display: Note name, LED bar, Lane canvas
+Microphone
+  │
+  ▼
+Lowpass Filter ─────────── lowpassFreq: 350 Hz
+  │                        Weakens upper harmonics
+  ▼
+AnalyserNode ──────────── bufferSize: 4096 (~93 ms)
+  │
+  ├─ waveform (inputBuffer)
+  │    │
+  │    ▼
+  │  [1] Attack Detection ─ attackRmsRatio: 3.0
+  │    │                     attackBlankMs: 120
+  │    │                     + octave lock reset
+  │    ▼
+  │  [2] RMS Gate ────────── rmsGateHigh / rmsGateLow
+  │    │                     rmsGateRelease: 0.9985
+  │    ▼
+  ├─ spectrum (freqBuffer)
+  │    │
+  │    ▼
+  │  [3] Spectral Gate ──── spectralThreshold: 0.25
+  │    │                     0=tone, 1=noise
+  │    ▼
+  │  [4] Pitch Detection ── clarityThreshold: 0.92
+  │    │  (pitchy MPM)       minFrequency / maxFrequency
+  │    ▼
+  │  [5] Median Filter ──── medianWindow: 7
+  │    │  (on Hz)
+  │    ▼
+  │  [6] Octave Lock ────── octaveLockEnabled
+  │    │  snap ×2/×0.5
+  │    ▼
+  │  [7] Freq → Note+Cents
+  │    │
+  │    ▼
+  │  [8] Note Change Detection
+  │    │
+  │    ▼
+  │  [9] EMA Filter ─────── smoothingAlpha: 0.15
+  │    │  (on cents)
+  │    ▼
+  ├────┼────────────┐
+  ▼    ▼            ▼
+Note  LED bar     Lane (canvas)
+±¢    21 seg.     trail + corridor
+▸ ◂   + mark      greenZoneCents: 13
+                  trailDurationSec: 3
 ```
 
 ## Settings
