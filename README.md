@@ -1,6 +1,6 @@
 # 🎸 Contrabass Tuner
 
-> **🇷🇺 [Русская версия](README.ru.md)**
+> **[Русская версия](README.ru.md)**
 
 A browser-based chromatic tuner optimized for double bass (contrabass). Single HTML file, works in any modern browser, fullscreen — designed to be visible from a distance while practicing.
 
