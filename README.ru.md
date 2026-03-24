@@ -37,35 +37,35 @@
 ## Путь сигнала
 
 ```
-Микрофон
+Microphone
   │
   ▼
-Lowpass Filter ─────────── lowpassFreq: 350 Гц
-  │                        Ослабляет верхние гармоники
+Lowpass Filter ─────────── lowpassFreq: 350 Hz
+  │                        Weakens upper harmonics
   ▼
-AnalyserNode ──────────── bufferSize: 4096 (~93 мс)
+AnalyserNode ──────────── bufferSize: 4096 (~93 ms)
   │
-  ├─ волна (inputBuffer)
+  ├─ waveform (inputBuffer)
   │    │
   │    ▼
   │  [1] Attack Detection ─ attackRmsRatio: 3.0
   │    │                     attackBlankMs: 120
-  │    │                     + сброс octave lock
+  │    │                     + octave lock reset
   │    ▼
   │  [2] RMS Gate ────────── rmsGateHigh / rmsGateLow
   │    │                     rmsGateRelease: 0.9985
   │    ▼
-  ├─ спектр (freqBuffer)
+  ├─ spectrum (freqBuffer)
   │    │
   │    ▼
   │  [3] Spectral Gate ──── spectralThreshold: 0.25
-  │    │                     0=тон, 1=шум
+  │    │                     0=tone, 1=noise
   │    ▼
   │  [4] Pitch Detection ── clarityThreshold: 0.92
   │    │  (pitchy MPM)       minFrequency / maxFrequency
   │    ▼
   │  [5] Median Filter ──── medianWindow: 7
-  │    │  (на Гц)
+  │    │  (on Hz)
   │    ▼
   │  [6] Octave Lock ────── octaveLockEnabled
   │    │  snap ×2/×0.5
@@ -77,13 +77,13 @@ AnalyserNode ──────────── bufferSize: 4096 (~93 мс)
   │    │
   │    ▼
   │  [9] EMA Filter ─────── smoothingAlpha: 0.15
-  │    │  (на центах)
+  │    │  (on cents)
   │    ▼
   ├────┼────────────┐
   ▼    ▼            ▼
-Нота  LED-шкала   Lane (canvas)
-±¢    21 сегм.    trail + коридор
-▸ ◂   + метка     greenZoneCents: 13
+Note  LED bar     Lane (canvas)
+±¢    21 seg.     trail + corridor
+▸ ◂   + mark      greenZoneCents: 13
                   trailDurationSec: 3
 ```
 
