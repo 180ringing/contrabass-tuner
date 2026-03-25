@@ -30,7 +30,7 @@ A web page was the simplest solution: one file, open in browser, fullscreen on a
 
 **Option 1: Online** — open the [live version](https://180ringing.github.io/contrabass-tuner/)
 
-**Option 2: Local** — download `index.html` and open in browser. Requires internet for first load (pitchy library from CDN).
+**Option 2: Local** — download `index.html` and open in browser. Works fully offline — all libraries are embedded in the file.
 
 Microphone access required. Works on Chrome, Firefox, Edge (desktop and mobile). Safari supported with user gesture.
 
@@ -95,8 +95,8 @@ All settings are saved automatically and persist across sessions.
 
 ## Tech Stack
 
-- Vanilla HTML/CSS/JS — single file, no build step
-- [pitchy](https://github.com/ianprime0509/pitchy) — McLeod Pitch Method for pitch detection
+- Vanilla HTML/CSS/JS — single file, no build step, works offline
+- [pitchy](https://github.com/ianprime0509/pitchy) (0BSD) + [fft.js](https://github.com/indutny/fft.js) (MIT) — embedded in the file, no CDN dependency
 - Web Audio API — microphone input and audio processing
 - Canvas 2D — lane rendering
 

@@ -30,7 +30,7 @@
 
 **Вариант 1: Онлайн** — откройте [живую версию](https://180ringing.github.io/contrabass-tuner/)
 
-**Вариант 2: Локально** — скачайте `index.html` и откройте в браузере. Для первой загрузки нужен интернет (библиотека pitchy с CDN).
+**Вариант 2: Локально** — скачайте `index.html` и откройте в браузере. Работает полностью офлайн — все библиотеки встроены в файл.
 
 Требуется доступ к микрофону. Работает в Chrome, Firefox, Edge (десктоп и мобильные). Safari поддерживается.
 
@@ -95,8 +95,8 @@ Note  LED bar     Lane (canvas)
 
 ## Технологии
 
-- Vanilla HTML/CSS/JS — один файл, без сборки
-- [pitchy](https://github.com/ianprime0509/pitchy) — McLeod Pitch Method для определения высоты тона
+- Vanilla HTML/CSS/JS — один файл, без сборки, работает офлайн
+- [pitchy](https://github.com/ianprime0509/pitchy) (0BSD) + [fft.js](https://github.com/indutny/fft.js) (MIT) — встроены в файл, без CDN
 - Web Audio API — микрофон и обработка аудио
 - Canvas 2D — отрисовка lane
 
