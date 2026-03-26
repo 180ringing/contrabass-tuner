@@ -99,6 +99,7 @@ All settings are saved automatically and persist across sessions.
 - [pitchy](https://github.com/ianprime0509/pitchy) (0BSD) + [fft.js](https://github.com/indutny/fft.js) (MIT) — embedded in the file, no CDN dependency
 - Web Audio API — microphone input and audio processing
 - Canvas 2D — lane rendering
+- [Yandex Metrica](https://metrika.yandex.ru/) — usage analytics
 
 ## Notes
 

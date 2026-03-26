@@ -99,6 +99,7 @@ Note  LED bar     Lane (canvas)
 - [pitchy](https://github.com/ianprime0509/pitchy) (0BSD) + [fft.js](https://github.com/indutny/fft.js) (MIT) — встроены в файл, без CDN
 - Web Audio API — микрофон и обработка аудио
 - Canvas 2D — отрисовка lane
+- [Яндекс Метрика](https://metrika.yandex.ru/) — аналитика использования
 
 ## Заметки
 
